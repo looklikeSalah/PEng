@@ -1,0 +1,286 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的英文生字學習站</title>
+    <link rel="icon" type="image/png" href="https://via.placeholder.com/32?text=📚">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #6ab0ff, #a1c4fd);
+        }
+        h1 {
+            color: #1a3c5e;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+        .container {
+            background-color: rgba(255, 255, 255, 0.97);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            text-align: center;
+            max-width: 800px;
+            width: 90%;
+        }
+        input, button {
+            padding: 12px;
+            margin: 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .delete-btn {
+            background-color: #e74c3c;
+            padding: 8px;
+            margin-left: 10px;
+            font-size: 14px;
+        }
+        .delete-btn:hover {
+            background-color: #c0392b;
+        }
+        .back-home-btn {
+            background-color: #e67e22;
+        }
+        .back-home-btn:hover {
+            background-color: #d35400;
+        }
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        #result {
+            margin-top: 10px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        #word-list {
+            margin-top: 20px;
+            text-align: left;
+        }
+        #word-list ul {
+            list-style: none;
+            padding: 0;
+        }
+        #word-list li {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        #score {
+            margin-top: 15px;
+            font-size: 18px;
+            color: #1a3c5e;
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 2em;
+            }
+            button, input {
+                width: 100%;
+                என்பது: box-sizing;
+            }
+            .button-group {
+                flex-direction: column;
+                gap: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>我的英文生字學習站</h1>
+        <div id="input-section">
+            <h3>新增生字</h3>
+            <input type="text" id="chinese-word" placeholder="輸入中文生字">
+            <input type="text" id="english-word" placeholder="輸入英文生字">
+            <div class="button-group">
+                <button onclick="addWord()">新增</button>
+                <button onclick="startQuiz()" id="start-quiz" style="display: none;">開始學習</button>
+            </div>
+            <div id="word-list">
+                <h3>我的生字庫</h3>
+                <ul id="word-list-items"></ul>
+            </div>
+        </div>
+        <div id="quiz-section" style="display: none;">
+            <h3>學習挑戰</h3>
+            <p>請輸入以下中文生字的英文：</p>
+            <p id="current-chinese"></p>
+            <input type="text" id="user-answer" placeholder="輸入英文">
+            <button onclick="checkAnswer()">提交</button>
+            <p id="result"></p>
+            <p id="score">正確：0 | 錯誤：0</p>
+            <button class="back-home-btn" onclick="backToHome()">回到首頁</button>
+        </div>
+    </div>
+
+    <script>
+        let words = JSON.parse(localStorage.getItem('words')) || [];
+        let correctCount = 0;
+        let wrongCount = 0;
+        let lastIndex = -1;
+
+        // 初始化生字列表
+        updateWordList();
+
+        function addWord() {
+            const chinese = document.getElementById('chinese-word').value.trim();
+            const english = document.getElementById('english-word').value.trim().toLowerCase();
+            if (chinese && english) {
+                words.push({ chinese, english });
+                localStorage.setItem('words', JSON.stringify(words));
+                document.getElementById('chinese-word').value = '';
+                document.getElementById('english-word').value = '';
+                document.getElementById('start-quiz').style.display = 'block';
+                updateWordList();
+                alert('生字已新增！');
+            } else {
+                alert('請輸入中文和英文生字！');
+            }
+        }
+
+        function deleteWord(index) {
+            words.splice(index, 1);
+            localStorage.setItem('words', JSON.stringify(words));
+            updateWordList();
+            if (words.length === 0) {
+                document.getElementById('start-quiz').style.display = 'none';
+            }
+        }
+
+        function updateWordList() {
+            const wordList = document.getElementById('word-list-items');
+            wordList.innerHTML = '';
+            words.forEach((word, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `${word.chinese} → ${word.english} <button class="delete-btn" onclick="deleteWord(${index})">刪除</button>`;
+                wordList.appendChild(li);
+            });
+        }
+
+        function startQuiz() {
+            if (words.length === 0) {
+                alert('請先新增生字！');
+                return;
+            }
+            document.getElementById('input-section').style.display = 'none';
+            document.getElementById('start-quiz').style.display = 'none';
+            document.getElementById('quiz-section').style.display = 'block';
+            correctCount = 0;
+            wrongCount = 0;
+            updateScore();
+            showNewQuestion();
+        }
+
+        function showNewQuestion() {
+            if (words.length === 1) {
+                lastIndex = 0;
+            } else {
+                let newIndex;
+                do {
+                    newIndex = Math.floor(Math.random() * words.length);
+                } while (newIndex === lastIndex);
+                lastIndex = newIndex;
+            }
+            const currentWord = words[lastIndex];
+            document.getElementById('current-chinese').textContent = currentWord.chinese;
+            document.getElementById('user-answer').value = '';
+            document.getElementById('result').textContent = '';
+        }
+
+        function checkAnswer() {
+            const userAnswer = document.getElementById('user-answer').value.trim().toLowerCase();
+            const currentChinese = document.getElementById('current-chinese').textContent;
+            const currentWord = words.find(word => word.chinese === currentChinese);
+            
+            if (userAnswer === currentWord.english) {
+                correctCount++;
+                document.getElementById('result').textContent = '正確！';
+                document.getElementById('result').style.color = 'green';
+                setTimeout(showNewQuestion, 1000);
+            } else {
+                wrongCount++;
+                document.getElementById('result').textContent = `錯誤！正確答案是：${currentWord.english}`;
+                document.getElementById('result').style.color = 'red';
+            }
+            updateScore();
+        }
+
+        function updateScore() {
+            document.getElementById('score').textContent = `正確：${correctCount} | 錯誤：${wrongCount}`;
+        }
+
+        function backToHome() {
+            document.getElementById('quiz-section').style.display = 'none';
+            document.getElementById('input-section').style.display = 'block';
+            document.getElementById('start-quiz').style.display = words.length > 0 ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>
